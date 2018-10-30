@@ -1,4 +1,4 @@
-package com.ashu.aws.services;
+package com.ashu.aws.s3.services;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ResponseEntity;

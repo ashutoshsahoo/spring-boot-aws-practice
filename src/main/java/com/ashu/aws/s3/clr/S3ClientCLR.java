@@ -1,10 +1,10 @@
-package com.ashu.aws;
+package com.ashu.aws.s3.clr;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 
-import com.ashu.aws.services.S3Services;
+import com.ashu.aws.s3.services.S3Services;
 
 //@Component
 public class S3ClientCLR implements CommandLineRunner {

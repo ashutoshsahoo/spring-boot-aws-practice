@@ -1,4 +1,4 @@
-package com.ashu.aws.config;
+package com.ashu.aws.s3.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

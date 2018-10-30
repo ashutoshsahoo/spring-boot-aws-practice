@@ -1,4 +1,4 @@
-package com.ashu.aws.controller;
+package com.ashu.aws.s3.controller;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.ashu.aws.services.S3Services;
+import com.ashu.aws.s3.services.S3Services;
 
 @RestController
 @RequestMapping(path = "/storage")

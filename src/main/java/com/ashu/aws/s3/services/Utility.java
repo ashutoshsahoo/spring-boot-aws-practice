@@ -1,4 +1,4 @@
-package com.ashu.aws;
+package com.ashu.aws.s3.services;
 
 import java.io.BufferedReader;
 import java.io.IOException;
