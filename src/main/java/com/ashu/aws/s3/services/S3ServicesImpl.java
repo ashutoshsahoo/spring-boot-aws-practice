@@ -1,11 +1,5 @@
 package com.ashu.aws.s3.services;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Date;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,131 +10,90 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.*;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.DeleteObjectRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.util.IOUtils;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 
 @Service
 public class S3ServicesImpl implements S3Services {
 
-	private Logger logger = LoggerFactory.getLogger(S3ServicesImpl.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(S3ServicesImpl.class);
 
-	@Value("${aws.bucketName}")
-	private String bucketName;
+    @Value("${aws.bucketName}")
+    private String bucketName;
 
-	@Value("${aws.endpointUrl}")
-	private String endpointUrl;
+    private final S3Client s3Client = S3Client.builder().build();
 
-	private final AmazonS3 s3Client;
+    @Override
+    public String uploadFile(MultipartFile multipartFile) {
+        try {
+            PutObjectResponse response = s3Client.putObject(PutObjectRequest.builder().bucket(bucketName).key(multipartFile.getOriginalFilename()).build(),
+                    RequestBody.fromBytes(multipartFile.getBytes()));
+            LOGGER.info("===================== Upload File - Done! =====================");
+            LOGGER.info("eTag : {}", response.eTag());
+            return response.eTag();
+        } catch (IOException e) {
+            LOGGER.error(e.getMessage());
+        }
+        return null;
+    }
 
-	public S3ServicesImpl(AmazonS3 s3Client) {
-		super();
-		this.s3Client = s3Client;
-	}
 
-	@Override
-	public void uploadFile(String fileName, String filePath) {
-		try {
-			File file = Paths.get(filePath).toFile();
-			PutObjectResult result = s3Client.putObject(
-					new PutObjectRequest(bucketName, fileName, file).withCannedAcl(CannedAccessControlList.PublicRead));
-			logger.info("===================== Upload File - Done! =====================");
-			logger.info("getContentMd5 : " + result.getContentMd5());
-		} catch (AmazonServiceException ase) {
-			logger.info("Caught an AmazonServiceException from PUT requests, rejected reasons:");
-			logger.info("Error Message:    " + ase.getMessage());
-			logger.info("HTTP Status Code: " + ase.getStatusCode());
-			logger.info("AWS Error Code:   " + ase.getErrorCode());
-			logger.info("Error Type:       " + ase.getErrorType());
-			logger.info("Request ID:       " + ase.getRequestId());
-		} catch (AmazonClientException ace) {
-			logger.info("Caught an AmazonClientException: ");
-			logger.info("Error Message: " + ace.getMessage());
-		}
+    @Override
+    public void delete(String fileName) {
+        s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucketName).key(fileName).build());
+    }
 
-	}
+    @Override
+    public ResponseEntity<ByteArrayResource> download(String fileName) {
 
-	@Override
-	public S3Object downloadFile(String fileName) {
-		try {
-			logger.info("================== downloading a file ===================");
-			S3Object s3Object = s3Client.getObject(new GetObjectRequest(bucketName, fileName));
-			logger.info("Content-Type : " + s3Object.getObjectMetadata().getContentType());
-			// Utility.displayText(s3Object.getObjectContent());
-			logger.info("===================== Import File - Done! =====================");
-			return s3Object;
-		} catch (AmazonServiceException ase) {
-			logger.info("Caught an AmazonServiceException from GET requests, rejected reasons:");
-			logger.info("Error Message:    " + ase.getMessage());
-			logger.info("HTTP Status Code: " + ase.getStatusCode());
-			logger.info("AWS Error Code:   " + ase.getErrorCode());
-			logger.info("Error Type:       " + ase.getErrorType());
-			logger.info("Request ID:       " + ase.getRequestId());
-		} catch (AmazonClientException ace) {
-			logger.info("Caught an AmazonClientException: ");
-			logger.info("Error Message: " + ace.getMessage());
-//		} catch (IOException ioe) {
-//			logger.info("IOE Error Message: " + ioe.getMessage());
-		}
-		return null;
-	}
+        try {
+            LOGGER.info("================== downloading a file ===================");
+            ResponseBytes<GetObjectResponse> objectAsBytes = s3Client.getObjectAsBytes(GetObjectRequest.builder().bucket(bucketName).key(fileName).build());
+            if (objectAsBytes == null) {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+            LOGGER.info("Content-Type : {}", objectAsBytes.response().contentType());
+            LOGGER.info("===================== Import File - Done! =====================");
+            ByteArrayResource resource = new ByteArrayResource(objectAsBytes.asByteArray());
+            return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=" + fileName)
+                    .contentType(MediaType.parseMediaType(objectAsBytes.response().contentType()))
+                    .contentLength(objectAsBytes.response().contentLength()).body(resource);
+        } catch (Exception ex) {
+            LOGGER.error(ex.getMessage(), ex);
+        }
+        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 
-	@Override
-	public String uploadFile(MultipartFile multipartFile) {
-		String fileName = null;
-		try {
-			File file = convertMulitipartToFile(multipartFile);
-			fileName = generateFileName(multipartFile);
-			uploadFile(fileName, file.getAbsolutePath());
-			file.delete();
-		} catch (Exception ex) {
-			logger.error(ex.getMessage(), ex);
-		}
-		return fileName;
-	}
+    @Override
+    public List<String> listObjects() {
+        List<String> objectList = new ArrayList<>();
+        try {
+            ListObjectsRequest listObjects = ListObjectsRequest
+                    .builder()
+                    .bucket(bucketName)
+                    .build();
 
-	private String generateFileName(MultipartFile multipartFile) {
-		return new Date().getTime() + "-" + multipartFile.getOriginalFilename().replace(" ", "-");
-	}
+            ListObjectsResponse res = s3Client.listObjects(listObjects);
+            List<S3Object> objects = res.contents();
 
-	private File convertMulitipartToFile(MultipartFile multipartFile) throws IOException {
-		File file = new File(multipartFile.getOriginalFilename());
-		FileOutputStream fos = new FileOutputStream(file);
-		fos.write(multipartFile.getBytes());
-		fos.close();
-		return file;
-	}
-
-	@Override
-	public void delete(String fileName) {
-		s3Client.deleteObject(new DeleteObjectRequest(bucketName, fileName));
-	}
-
-	@Override
-	public ResponseEntity<ByteArrayResource> download(String fileName) {
-		S3Object s3Object = downloadFile(fileName);
-		if (s3Object == null) {
-			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-		}
-		try {
-			if (s3Object != null) {
-				ByteArrayResource resource = new ByteArrayResource(IOUtils.toByteArray(s3Object.getObjectContent()));
-				return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=" + fileName)
-						.contentType(MediaType.parseMediaType(s3Object.getObjectMetadata().getContentType()))
-						.contentLength(s3Object.getObjectMetadata().getContentLength()).body(resource);
-			}
-		} catch (IOException ex) {
-			logger.error(ex.getMessage(), ex);
-		}
-		return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-	}
+            for (S3Object myValue : objects) {
+                LOGGER.info(" The name of the key is {}", myValue.key());
+                LOGGER.info(" The object is {} KBs", myValue.size() / 1024);
+                LOGGER.info(" The owner is {}", myValue.owner());
+                objectList.add(myValue.key());
+            }
+        } catch (S3Exception e) {
+            LOGGER.error(e.awsErrorDetails().errorMessage());
+        }
+        return objectList;
+    }
 
 }
+

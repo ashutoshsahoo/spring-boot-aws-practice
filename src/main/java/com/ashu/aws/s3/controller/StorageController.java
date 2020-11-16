@@ -13,6 +13,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.ashu.aws.s3.services.S3Services;
 
+import java.util.List;
+
 @RestController
 @RequestMapping(path = "/storage")
 public class StorageController {
@@ -32,6 +34,11 @@ public class StorageController {
 	@GetMapping("/{fileName}")
 	public ResponseEntity<ByteArrayResource> downloadFile(@PathVariable("fileName") String fileName) {
 		return s3Services.download(fileName);
+	}
+
+	@GetMapping
+	public List<String> getFiles(){
+		return s3Services.listObjects();
 	}
 
 	@DeleteMapping("/{fileName}")

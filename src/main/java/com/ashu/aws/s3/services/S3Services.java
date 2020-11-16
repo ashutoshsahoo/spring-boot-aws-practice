@@ -4,17 +4,15 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.amazonaws.services.s3.model.S3Object;
+import java.util.List;
 
 public interface S3Services {
 
-	void uploadFile(String fileName, String filePath);
+    String uploadFile(MultipartFile file);
 
-	S3Object downloadFile(String fileName);
+    void delete(String fileName);
 
-	String uploadFile(MultipartFile file);
+    ResponseEntity<ByteArrayResource> download(String fileName);
 
-	void delete(String fileName);
-
-	ResponseEntity<ByteArrayResource> download(String fileName);
+    List<String> listObjects();
 }
